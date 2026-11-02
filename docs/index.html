@@ -45,14 +45,60 @@ button:disabled{opacity:.6}
       b = new Uint8Array(b); return crypto.subtle.decrypt({ name: "AES-GCM", iv: b.subarray(0, 12) }, k, b.subarray(12));
     }).then(function (x) { return new TextDecoder().decode(x) === "tamam"; }).catch(function () { return false; });
   }
-  function ac() {
-    if (!("serviceWorker" in navigator)) { $("f").hidden = false; $("m").textContent = "Bu tarayıcı desteklemiyor (Service Worker yok)."; return Promise.resolve(); }
-    return navigator.serviceWorker.register("sw.js", { scope: "./" }).then(function () { return navigator.serviceWorker.ready; }).then(function (r) {
-      if (r.active) r.active.postMessage("anahtar");
-      location.replace("app/" + location.hash);
+  var KOK = new URL(".", location.href).href, E = 4194304 + 28, KEY = null, ONB = "sd-e-1", bl = {};
+  function sifreliAl(p) {
+    var url = "e/" + p + ".bin", buyuk = p.indexOf("kb/") === 0;
+    var yedek = function () { return (window.caches ? caches.open(ONB).then(function (c) { return c.match(url); }) : Promise.resolve(null)).catch(function () { return null; }); };
+    return fetch(url, { cache: "no-cache" }).then(function (r) {
+      if (r.ok && !buyuk && window.caches) { var k = r.clone(); caches.open(ONB).then(function (c) { return c.put(url, k); }).catch(function () {}); }
+      if (r.ok || r.status === 404) return r; return yedek().then(function (m) { return m || r; });
+    }, function () { return yedek().then(function (m) { return m || new Response("", { status: 504 }); }); });
+  }
+  function sun(p) {
+    return sifreliAl(p).then(function (r) {
+      if (!r.ok) return new Response("", { status: r.status });
+      var rd = r.body.getReader(), parca = [], boy = 0;
+      function al2() { var b = new Uint8Array(boy), o = 0; parca.forEach(function (x) { b.set(x, o); o += x.length; }); parca = []; boy = 0; return b; }
+      function coz(ch) { return crypto.subtle.decrypt({ name: "AES-GCM", iv: ch.subarray(0, 12) }, KEY, ch.subarray(12)).then(function (x) { return new Uint8Array(x); }); }
+      var akis = new ReadableStream({ pull: function (ctl) {
+        function dongu() {
+          if (boy >= E) { var b = al2(), ch = b.subarray(0, E); if (b.length > E) { parca = [b.subarray(E)]; boy = b.length - E; } return coz(ch).then(function (x) { ctl.enqueue(x); }); }
+          return rd.read().then(function (o) {
+            if (o.done) { if (!boy) { ctl.close(); return; } return coz(al2()).then(function (x) { ctl.enqueue(x); ctl.close(); }); }
+            parca.push(o.value); boy += o.value.length; return dongu();
+          });
+        }
+        return dongu().catch(function (e) { ctl.error(e); });
+      }, cancel: function () { rd.cancel(); } });
+      var uz = p.split(".").pop().toLowerCase(), T = { js: "text/javascript", json: "application/json", jpg: "image/jpeg", png: "image/png", svg: "image/svg+xml", pdf: "application/pdf" };
+      return new Response(akis, { headers: { "content-type": T[uz] || "application/octet-stream" } });
     });
   }
-  al().then(function (k) { if (k) return ac(); $("f").hidden = false; $("pw").focus(); }).catch(function () { $("f").hidden = false; });
+  function yol(u) { var a = new URL(u, KOK).href; if (a.indexOf(KOK) !== 0) return null; var p = a.slice(KOK.length).split(/[?#]/)[0]; return p && p.indexOf("e/") !== 0 ? decodeURIComponent(p) : null; }
+  window.__vfsUrl = function (u) { var p = yol(u); if (!p) return Promise.resolve(u); return bl[p] || (bl[p] = sun(p).then(function (r) { if (!r.ok) throw new Error(p + " " + r.status); return r.blob(); }).then(function (b) { return URL.createObjectURL(b); })); };
+  var ozFetch = window.fetch.bind(window);
+  window.fetch = function (i, o) {
+    var u = typeof i === "string" ? i : (i && i.url), m = (o && o.method) || (i && i.method) || "GET", p = u && /^GET$/i.test(m) ? yol(u) : null;
+    return p ? sun(p) : ozFetch(i, o);
+  };
+  function resim(el) {
+    var s = el.getAttribute("src"); if (!s || /^(data:|blob:|https?:)/.test(s)) return; var p = yol(s); if (!p) return;
+    el.removeAttribute("src"); window.__vfsUrl(s).then(function (u) { el.src = u; }).catch(function () {});
+  }
+  window.__vfsBasla = function () {
+    new MutationObserver(function (ms) { ms.forEach(function (m) {
+      if (m.type === "attributes") { if (m.target.tagName === "IMG") resim(m.target); return; }
+      m.addedNodes.forEach(function (n) { if (n.nodeType !== 1) return; if (n.tagName === "IMG") resim(n); if (n.querySelectorAll) n.querySelectorAll("img[src]").forEach(resim); });
+    }); }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["src"] });
+  };
+  function ac(k) {
+    KEY = k; $("m").style.color = "var(--muted)"; $("m").textContent = "Açılıyor…";
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); }).catch(function () {});
+    return sun("index.html").then(function (r) { if (!r.ok) throw new Error("uygulama alınamadı (" + r.status + ")"); return r.text(); }).then(function (h) {
+      document.open(); document.write(h); document.close();
+    }).catch(function (er) { $("f").hidden = false; $("m").style.color = "var(--red)"; $("m").textContent = "Açılamadı: " + (er && er.message || er); });
+  }
+  al().then(function (k) { if (k) return ac(k); $("f").hidden = false; $("pw").focus(); }).catch(function () { $("f").hidden = false; });
   $("f").addEventListener("submit", function (e) {
     e.preventDefault(); var pw = $("pw").value.trim().toLowerCase(); if (!pw) return;
     $("b").disabled = true; $("m").style.color = "var(--muted)"; $("m").textContent = "Kontrol ediliyor…";
@@ -61,7 +107,7 @@ button:disabled{opacity:.6}
     }).then(function (k) {
       return dene(k).then(function (ok) {
         if (!ok) { $("m").style.color = "var(--red)"; $("m").textContent = "Parola yanlış."; $("b").disabled = false; return; }
-        $("m").textContent = "Açılıyor…"; return koy(k).then(ac);
+        return koy(k).then(function () { return ac(k); }, function () { return ac(k); });
       });
     }).catch(function (er) { $("m").style.color = "var(--red)"; $("m").textContent = "Hata: " + (er && er.message || er); $("b").disabled = false; });
   });
